@@ -1,0 +1,24 @@
+{
+    "name": "hyperbolic-being",
+    "version": "0.0.1",
+    "description": "Audio visual performance software about Hyperbolic Tessellation and Kleinian groups",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/soma-arc/HyperbolicBeing.git"
+    },
+    "author": "soma_arc",
+    "license": "GPL-3.0",
+    "bugs": {
+        "url": "https://github.com/soma-arc/HyperbolicBeing/issues"
+    },
+    "homepage": "https://github.com/soma-arc/HyperbolicBeing#readme",
+    "readmeFilename": "README.md",
+    "dependencies": {
+        "osc": "2.1.0",
+        "ws": "1.1.0"
+    }
+}
