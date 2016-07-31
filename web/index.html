@@ -587,12 +587,24 @@
      gl_FragColor = vec4(sum/sampleNum, 1.);
    }
   </script>
+  <script id="optvs" type="x-shader/x-vertex">
+   attribute vec2  position;
+//   uniform   mat4  mvpMatrix;
+//   uniform   float pointSize;
+   varying   vec4  vColor;
 
-  <style>
-   canvas {
-     background-color: black;
+   void main(void){
+     gl_Position  = vec4(position, 0.0, 1.0);
+     gl_PointSize = 30.;
+//     gl_PointSize = pointSize;
    }
-  </style>
+  </script>
+  <script id="optfs" type="x-shader/x-fragment">
+   precision mediump float;
+   void main(void){
+     gl_FragColor = vec4(0.0, 0.7, 1.0, 1.0);
+   }
+  </script>
 </head>
 <body>
   <canvas id="canvas" width="512" height="512"></canvas>

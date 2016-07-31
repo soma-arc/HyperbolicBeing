@@ -4,4 +4,5 @@ body {
 canvas {
     cursor: none;
     display:block;
+    background-color: black;
 }

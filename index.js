@@ -60,10 +60,11 @@ wss.on("connection", function (socket) {
 
 
 http.createServer(function (request, response) {
-    if(decodeURI(request.url) == '/'){
+    var decodedURI = decodeURI(request.url);
+    if(decodedURI == '/'){
         f = 'web/index.html';
     }else{
-        f = 'web' + decodeURI(request.url);
+        f = 'web' + decodedURI;
     }
     fs.exists(f, function (exists) {
         if (exists) {
@@ -73,11 +74,11 @@ http.createServer(function (request, response) {
                     response.end('Server Error!');
                     return;
                 }
+                //console.log(decodeURI(request.url) +' '+f +'  '+ path.extname(f)  );
                 var headers = {'content-Type' : mimeTypes[path.extname(f)]};
                 response.writeHead(200, headers);
                 response.end(data);
             });
-            return;
         }else{
             response.writeHead(404);
             response.end('Nod found.');

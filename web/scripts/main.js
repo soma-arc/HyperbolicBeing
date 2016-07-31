@@ -102,19 +102,20 @@ function setWebcam(){
     }
 }
 
+var g_oscPort;
 window.addEventListener('load', function(event){
-    var oscPort = new osc.WebSocketPort({
+    g_oscPort = new osc.WebSocketPort({
         url: "ws://127.0.0.1:8081"
     });
 
-    oscPort.on("message", function (oscMessage) {
+    g_oscPort.on("message", function (oscMessage) {
 //        console.log("message", oscMessage);
         if(oscMessage['address'] == '/audio/loud'){
             g_tiltX = oscMessage['args'][0];
         }
     });
 
-    oscPort.open();
+    g_oscPort.open();
 
     var i = 0;
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[i++],
@@ -168,6 +169,10 @@ window.addEventListener('mousemove', function(event){
     g_mousePos = [event.clientX - g_center[0], g_canvas.height - event.clientY - g_center[1]];
 }, false);
 
+window.addEventListener('beforeunload', function(event){
+    g_oscPort.close()
+}, false);
+
 /*
 var g_scaleFactor = 0.1;
 window.onmousewheel = function(event){
@@ -194,8 +199,7 @@ function resizeCanvasFullscreen(){
 }
 
 
-function setupGL(canvas, fragId){
-    var gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+function setupShaderGraphicProgram(gl, fragId){
     var program = gl.createProgram();
     attachShader(gl, fragId, program, gl.FRAGMENT_SHADER);
     attachShader(gl, 'vs', program, gl.VERTEX_SHADER);
@@ -227,6 +231,46 @@ function setupGL(canvas, fragId){
     gl.vertexAttribPointer(vAttLocation, 3, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vIndex);
 
+    return [program, uniLocation, vPosition, vIndex, vAttLocation];
+}
+
+function setupOptProgram(gl, fragId, vertId){
+    var program = gl.createProgram();
+    attachShader(gl, fragId, program, gl.FRAGMENT_SHADER);
+    attachShader(gl, vertId, program, gl.VERTEX_SHADER);
+    program = linkProgram(gl, program);
+
+    var uniLocation = new Array();
+
+    var attLocation = new Array();
+    attLocation[0] = gl.getAttribLocation(program, 'position');
+
+
+    var position = [];
+    var resolutionX = 10;
+    var resolutionY = 10;
+    var intervalX = 1.0 / resolutionX;
+    var intervalY = 1.0 / resolutionY;
+    var i, j, x, y;
+    for(i = 0; i < resolutionX; i++){
+	for(j = 0; j < resolutionY; j++){
+	    x = i * intervalX * 2.0 - 1.0;
+	    y = j * intervalY * 2.0 - 1.0;
+	    position.push(x, y);
+	}
+    }
+    var numPoints = resolutionX * resolutionY;
+    var pointPosition = new Float32Array(position);
+    var vbo = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.enableVertexAttribArray(attLocation[0]);
+    gl.vertexAttribPointer(attLocation[0], 2, gl.FLOAT, false, 0, 0);
+    gl.bufferData(gl.ARRAY_BUFFER, pointPosition, gl.DYNAMIC_DRAW);
+
+    return [program, uniLocation, vbo, attLocation, pointPosition, numPoints];
+}
+
+function createVideoTexture(gl){
     var videoTexture = gl.createTexture(gl.TEXTURE_2D);
 
     gl.activeTexture(gl.TEXTURE0);
@@ -236,18 +280,26 @@ function setupGL(canvas, fragId){
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-    return [gl, uniLocation];
+    return videoTexture;
 }
 
 function render(){
-    var [gl, uniLocation] = setupGL(g_canvas, 'fs3');
-    if(g_debug){
-        var [gl2, uniLocation2] = setupGL(g_canvas2, 'fs4');
+    var startTime = new Date().getTime();
+    var gl = g_canvas.getContext('webgl') || g_canvas.getContext('experimental-webgl');
+    var [sgProgram, sgUniLocation, sgPositionVbo, sgIndex, sgAttLocation] = setupShaderGraphicProgram(gl, 'fs3');
+    var [optProgram, optUniLocation, optPositionVbo,
+         optAttLocation, optPointPosition, optNumPoints] = setupOptProgram(gl, 'optfs', 'optvs');
+    var videoTexture = createVideoTexture(gl);
+
+    var switchSg = function(){
+        gl.useProgram(sgProgram);
+        gl.bindBuffer(gl.ARRAY_BUFFER, sgPositionVbo);
+	gl.enableVertexAttribArray(sgAttLocation);
+	gl.vertexAttribPointer(sgAttLocation, 3, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sgIndex);
     }
 
-    var startTime = new Date().getTime();
-    (function(){
+    var renderSg = function(){
         var elapsedTime = new Date().getTime() - startTime;
         if(g_mousePressing){
             g_translate[0] += (g_mousePos[0]) / 5000 * g_scale;
@@ -255,7 +307,7 @@ function render(){
             console.log(g_translate);
         }
         function renderGL(gl, uniLocation, canvas){
-            gl.viewport(0, 0, g_canvas.width, g_canvas.height);
+            gl.viewport(0, 0, canvas.width, canvas.height);
             gl.clearColor(0.0, 0.0, 0.0, 1.0);
 	    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -271,11 +323,48 @@ function render(){
 
 	    gl.flush();
         }
-        renderGL(gl, uniLocation, g_canvas);
+        renderGL(gl, sgUniLocation, g_canvas);
         if(g_debug){
-            renderGL(gl2, uniLocation2, g_canvas2);
+            renderGL(gl2, sgUniLocation2, g_canvas2);
         }
+    }
 
+    var switchOpt = function(){
+        gl.useProgram(optProgram);
+        gl.bindBuffer(gl.ARRAY_BUFFER, optPositionVbo);
+	gl.enableVertexAttribArray(optAttLocation);
+	gl.vertexAttribPointer(optAttLocation, 2, gl.FLOAT, false, 0, 0);
+        //gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+    }
+
+    var renderOpt = function(){
+        var elapsedTime = new Date().getTime() - startTime;
+        gl.viewport(0, 0, g_canvas.width, g_canvas.height);
+	for(i = 0; i < optNumPoints; i++){
+            var j = i * 2;
+	    optPointPosition[j]     =  Math.cos(elapsedTime + j);
+	    optPointPosition[j + 1] = Math.sin(elapsedTime + j);
+	}
+	gl.bufferSubData(gl.ARRAY_BUFFER, 0, optPointPosition);
+
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+	gl.clear(gl.COLOR_BUFFER_BIT);
+	gl.drawArrays(gl.LINES, 0, optNumPoints);
+	gl.flush();
+    }
+
+
+    if(g_debug){
+        var gl2 = g_canvas2.getContext('webgl') || g_canvas2.getContext('experimental-webgl');
+//        var [gl2, uniLocation2] = setupGL(gl2, 'fs4');
+    }
+
+    gl.enable(gl.BLEND);
+    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ONE, gl.ONE);
+
+    switchOpt();
+    (function(){
+        renderOpt();
 	requestAnimationFrame(arguments.callee);
     })();
 }
