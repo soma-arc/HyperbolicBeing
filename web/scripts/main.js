@@ -173,6 +173,16 @@ window.addEventListener('beforeunload', function(event){
     g_oscPort.close()
 }, false);
 
+window.addEventListener('keydown', function(event){
+    if(event.key == '1'){
+        switchingFunctions[RENDER_SG]();
+        renderMode = RENDER_SG;
+    }else if(event.key == '2'){
+        switchingFunctions[RENDER_OPT]();
+        renderMode = RENDER_OPT;
+    }
+}, false);
+
 /*
 var g_scaleFactor = 0.1;
 window.onmousewheel = function(event){
@@ -283,6 +293,10 @@ function createVideoTexture(gl){
     return videoTexture;
 }
 
+const RENDER_OPT = 0;
+const RENDER_SG = 1;
+var renderMode = RENDER_SG;
+var switchingFunctions = [];
 function render(){
     var startTime = new Date().getTime();
     var gl = g_canvas.getContext('webgl') || g_canvas.getContext('experimental-webgl');
@@ -298,7 +312,7 @@ function render(){
 	gl.vertexAttribPointer(sgAttLocation, 3, gl.FLOAT, false, 0, 0);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sgIndex);
     }
-
+    switchingFunctions[RENDER_SG] = switchSg;
     var renderSg = function(){
         var elapsedTime = new Date().getTime() - startTime;
         if(g_mousePressing){
@@ -336,7 +350,7 @@ function render(){
 	gl.vertexAttribPointer(optAttLocation, 2, gl.FLOAT, false, 0, 0);
         //gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
     }
-
+    switchingFunctions[RENDER_OPT] = switchOpt;
     var renderOpt = function(){
         var elapsedTime = new Date().getTime() - startTime;
         gl.viewport(0, 0, g_canvas.width, g_canvas.height);
@@ -362,9 +376,13 @@ function render(){
     gl.enable(gl.BLEND);
     gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ONE, gl.ONE);
 
-    switchOpt();
+    switchSg();
     (function(){
-        renderOpt();
+        if(renderMode == RENDER_OPT){
+            renderOpt();
+        }else if(renderMode == RENDER_SG){
+            renderSg();
+        }
 	requestAnimationFrame(arguments.callee);
     })();
 }
