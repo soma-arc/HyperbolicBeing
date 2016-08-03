@@ -55,12 +55,12 @@ function setInputs(midiAccess){
 }
 
 function onMidiMessage(event){
-    console.log(event);
+//    console.log(event);
     var str = '';
     for (var i = 0; i < event.data.length; i++) {
         str += event.data[i] + ':';
     }
-    console.log(str);
+//    console.log(str);
     KorgNanoKontrol.onMidiMessage(event.data[1], event.data[2]);
 }
 
@@ -149,6 +149,7 @@ window.addEventListener('load', function(event){
         resizeCanvasFullscreen();
     }
     setWebcam();
+
 }, false);
 
 window.addEventListener('resize', function(event){
@@ -269,8 +270,17 @@ function setupOptProgram(gl, fragId, vertId){
 	    position.push(x, y);
 	}
     }
-    var numPoints = resolutionX * resolutionY;
-    var pointPosition = new Float32Array(position);
+    var cp = new ComplexProbability(new Complex(0.25, 0),
+                                    new Complex(0.25, 0),
+                                    Complex.ZERO);
+    cp.setQ(new Complex(0.25, 0.25));
+    var ex = new OptLimitSetExplorer(cp.getGens());
+    console.log(ex.gens);
+    //    console.log('calc');
+    ex.run(10, 0.01);
+    console.log(ex.points);
+    var numPoints = ex.points.length / 2;
+    var pointPosition = new Float32Array(ex.points);
     var vbo = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
     gl.enableVertexAttribArray(attLocation[0]);
@@ -318,7 +328,7 @@ function render(){
         if(g_mousePressing){
             g_translate[0] += (g_mousePos[0]) / 5000 * g_scale;
             g_translate[1] += (g_mousePos[1]) / 5000 * g_scale;
-            console.log(g_translate);
+//            console.log(g_translate);
         }
         function renderGL(gl, uniLocation, canvas){
             gl.viewport(0, 0, canvas.width, canvas.height);
@@ -354,16 +364,16 @@ function render(){
     var renderOpt = function(){
         var elapsedTime = new Date().getTime() - startTime;
         gl.viewport(0, 0, g_canvas.width, g_canvas.height);
-	for(i = 0; i < optNumPoints; i++){
-            var j = i * 2;
-	    optPointPosition[j]     =  Math.cos(elapsedTime + j);
-	    optPointPosition[j + 1] = Math.sin(elapsedTime + j);
-	}
-	gl.bufferSubData(gl.ARRAY_BUFFER, 0, optPointPosition);
+	// for(i = 0; i < optNumPoints; i++){
+        //     var j = i * 2;
+	//     optPointPosition[j]     =  Math.cos(elapsedTime + j);
+	//     optPointPosition[j + 1] = Math.sin(elapsedTime + j);
+	// }
+	 gl.bufferSubData(gl.ARRAY_BUFFER, 0, optPointPosition);
 
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
 	gl.clear(gl.COLOR_BUFFER_BIT);
-	gl.drawArrays(gl.LINES, 0, optNumPoints);
+	gl.drawArrays(gl.LINE_STRIP, 0, optNumPoints);
 	gl.flush();
     }
 
