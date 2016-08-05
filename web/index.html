@@ -8,7 +8,7 @@
      margin: 0;
    }
    canvas {
-     cursor: none;
+     cursor: crosshair;
      display:block;
      background-color: black;
    }
@@ -230,6 +230,13 @@
    uniform vec2 tilt;
    uniform float scale;
    uniform vec2 translate;
+   uniform int xyReverse;
+   uniform float mixFactor;
+   uniform int drawLine;
+   uniform float rotation;
+   uniform int drawOuter;
+   uniform float hueStep;
+   uniform int maxIterations;
 
    vec2 rand2n(vec2 co, float sampleIndex) {
      vec2 seed = co * (sampleIndex + 1.0);
@@ -287,7 +294,7 @@
 
    bool revCircle = false;
    bool revCircle2 = false;
-   const int ITERATIONS = 100;
+   const int ITERATIONS = 50;
    float colCount = 0.;
    bool outer = false;
    int IIS(vec2 pos){
@@ -298,16 +305,18 @@
      int invCount = 1;
      for(int i = 0 ; i < ITERATIONS ; i++){
        fund = true;
-       // if (pos.x < 0.){
-       //   pos *= vec2(-1, 1);
-       //   invCount++;
-       //   fund = false;
-       // }
-       // if(pos.y < 0.){
-       //   pos *= vec2(1, -1);
-       //   invCount++;
-       //   fund = false;
-       // }
+       if(xyReverse == 1){
+         if (pos.x < 0.){
+           pos *= vec2(-1, 1);
+           invCount++;
+           fund = false;
+         }
+         if(pos.y < 0.){
+           pos *= vec2(1, -1);
+           invCount++;
+           fund = false;
+         }
+       }
        if(revCircle){
          if(distance(pos, cPos1) > cr1 ){
            pos = circleInverse(pos, cPos1, cr1);
@@ -366,8 +375,13 @@
 
        if(fund){
          if(length(pos) > 1.5){
+           g_pos = pos;
            outer = true;
-           return 0;
+           if(drawOuter == 1){
+             return invCount;
+           }else{
+             return 0;
+           }
          }
          g_pos = pos;
          return invCount;
@@ -456,10 +470,14 @@
      vec2 tile = corner * 2.;
      for(float i = 0. ; i < sampleNum ; i++){
        vec2 position = ( (gl_FragCoord.xy + rand2n(gl_FragCoord.xy, i)) / iResolution.yy ) - vec2(ratio, 0.5);
+       mat2 m = mat2(cos(rotation), -sin(rotation),
+                     sin(rotation), cos(rotation));
 
        position *= scale;//( 2.2 + ( t * 8.));
        //position += vec2(cos(iGlobalTime), 0.3 * sin(iGlobalTime));
+
        position += translate;
+              position = m * position;
        int d = IIS(position);
 
 
@@ -470,28 +488,35 @@
        if(d == 0){
          sum += vec3(0.,0.,0.);
        }else{
-         // if(abs(distance(g_pos, cPos1) - cr1) < 0.01 ||
-         //    abs(distance(g_pos, cPos2) - cr2) < 0.01 ||
-         //    abs(distance(g_pos, -cPos1) - cr1) < 0.01 ||
-         //    abs(distance(g_pos, -cPos2) - cr2) < 0.01){
-         //      sum += vec3(0, 0, 0);
-         //    }else{
-         sum += texture2D(texture, abs( vec2( 1.) - (g_pos + texTranslate) / tile)).rgb;
-         //            }
-         continue;
+         vec3 ss;
+         if(drawLine == 1){
+           if(abs(distance(g_pos, cPos1) - cr1) < 0.01 ||
+              abs(distance(g_pos, cPos2) - cr2) < 0.01 ||
+              abs(distance(g_pos, -cPos1) - cr1) < 0.01 ||
+              abs(distance(g_pos, -cPos2) - cr2) < 0.01){
+                sum += vec3(0, 0, 0);
+              }else{
+                ss = texture2D(texture, abs( vec2( 1.) - (g_pos + texTranslate) / tile)).rgb;
+              }
+         }else{
+           ss = texture2D(texture, abs( vec2( 1.) - (g_pos + texTranslate) / tile)).rgb;
+         }
+         //continue;
+         vec3 ss2;
          if(mod(float(d), 2.) == 0.){
            if(outer){
-             sum += hsv2rgb(vec3(0.4 + 0.02 * colCount, 1., 1.));
+             ss2 = hsv2rgb(vec3(0.5 + hueStep * colCount, 1., 1.));
            }else{
-             sum += hsv2rgb(vec3(0.02 * colCount, 1., 1.));
+             ss2 = hsv2rgb(vec3(hueStep * colCount, 1., 1.));
            }
          }else{
            if(outer){
-             sum += hsv2rgb(vec3(0.8 + 0.02 * colCount, 1., 1.));
+             ss2 = hsv2rgb(vec3(0.9 + hueStep * colCount, 1., 1.));
            }else{
-             sum += hsv2rgb(vec3(0.7 + 0.02 * colCount, 1., 1.));
+             ss2 = hsv2rgb(vec3(0.7 + hueStep * colCount, 1., 1.));
            }
          }
+         sum += mix(ss, ss2, mixFactor);
        }
      }
      gl_FragColor = vec4(sum/sampleNum, 1.);

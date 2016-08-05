@@ -4,6 +4,8 @@ var g_video;
 var g_debug = false;
 
 var g_midi;
+var g_baseTiltX = 0;
+var g_baseTiltY = 0;
 var g_tiltX = 0;
 var g_tiltY = 0;
 var g_scale = 2.;
@@ -11,6 +13,17 @@ var g_translate = [0, 0];
 var g_mousePressing = false;
 var g_center = [0, 0];
 var g_mousePos = [0, 0];
+
+var g_isOscTiltX = false;
+var g_isOscTiltY = false;
+var g_xyReverse = 0;
+var g_mixFactor = 0;
+var g_drawLine = 0;
+var g_rotation = 0;
+var g_rotationStep = 0;
+var g_hueStep = 0.2;
+var g_drawOuter = 0;
+var g_maxIterations = 20;
 
 var KorgNanoKontrol = new Object();
 KorgNanoKontrol.knob = new Object();
@@ -23,7 +36,7 @@ KorgNanoKontrol.controlListeners = new Object();
 for(var i = 0 ; i < 8 ; i++){
     KorgNanoKontrol.slider[i] = i;
     KorgNanoKontrol.knob[i] = 16 + i;
-    KorgNanoKontrol.buttonS[i] = 33 + i;
+    KorgNanoKontrol.buttonS[i] = 32 + i;
     KorgNanoKontrol.buttonM[i] = 48 + i;
     KorgNanoKontrol.buttonR[i] = 64 + i;
 }
@@ -103,6 +116,7 @@ function setWebcam(){
 }
 
 var g_oscPort;
+var g_tiltXFactor = 5.5;
 window.addEventListener('load', function(event){
     g_oscPort = new osc.WebSocketPort({
         url: "ws://127.0.0.1:8081"
@@ -111,36 +125,101 @@ window.addEventListener('load', function(event){
     g_oscPort.on("message", function (oscMessage) {
 //        console.log("message", oscMessage);
         if(oscMessage['address'] == '/audio/loud'){
-            g_tiltX = oscMessage['args'][0];
+            if(g_isOscTiltX){
+                g_tiltX = g_baseTiltX + oscMessage['args'][0];
+            }
+            if(g_isOscTiltY){
+                g_tiltY = g_baseTiltY + oscMessage['args'][0];
+            }
         }
     });
 
     g_oscPort.open();
 
     var i = 0;
-    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[i++],
+    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[0],
                                        function(value){
-                                           g_tiltX = (value) / 127 * Math.PI / 2.;
+                                           if(g_isOscTiltX){
+                                               g_baseTiltX = (value - 64) / 64 * Math.PI / 5.5;
+                                           }else{
+                                               g_tiltX = g_baseTiltX + (value - 64) / 64 * Math.PI / 5.5;
+                                           }
                                        });
-     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[i++],
-                                        function(value){
-                                            g_tiltY = (value - 64) / 64 * Math.PI / 5.5;
+    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.buttonS[0],
+                                       function(value){
+                                           if(value == 127)
+                                               g_isOscTiltX = !g_isOscTiltX;
+                                       });
+    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.buttonM[0],
+                                       function(value){
+                                           if(value == 127)
+                                               g_drawLine = !g_drawLine;
+                                       });
+    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.buttonM[1],
+                                       function(value){
+                                           if(value == 127)
+                                               g_drawOuter = !g_drawOuter;
+                                       });
+    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.buttonM[2],
+                                       function(value){
+                                           if(value == 127)
+                                               g_maxIterations++;
+                                       });
+    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.buttonR[2],
+                                       function(value){
+                                           if(value == 127 && g_maxIterations > 0)
+                                              g_maxIterations--;
+                                       });
+    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.buttonR[0],
+                                       function(value){
+                                           if(value == 127)
+                                               g_xyReverse = !g_xyReverse;
+                                       });
+    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[1],
+                                       function(value){
+                                           if(g_isOscTiltY){
+                                               g_baseTiltY = (value - 64) / 64 * Math.PI / 5.5;
+                                           }else{
+                                               g_tiltY = g_baseTiltY + (value - 64) / 64 * Math.PI / 5.5;
+                                           }
+                                       });
+    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.buttonS[1],
+                                       function(value){
+                                           if(value == 127)
+                                               g_isOscTiltY = !g_isOscTiltY;
                                         });
-    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[i++],
+    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[2],
                                        function(value){
                                            g_scale = .1 + value / 10;
                                        });
-    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[i++],
+    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[3],
                                        function(value){
-                                           g_translate[0] = (value - 64) / 16;
+                                           g_baseTiltX = (value) / 127 * Math.PI / 5.5;
+                                           g_tiltX = g_baseTiltX + (value - 64) / 64 * Math.PI / 5.5;
                                        });
-    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[i++],
+    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[4],
                                        function(value){
-                                           g_translate[1] = (value - 64) / 16;
+                                           g_baseTiltY = (value) / 127 * Math.PI / 5.5;
+                                           g_tiltY = g_baseTiltY + (value - 64) / 64 * Math.PI / 5.5;
+                                       });
+    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[5],
+                                       function(value){
+                                           g_mixFactor = (value) / 127;
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.buttonCycle,
                                        function(value){
-                                           location.reload();
+//                                           location.reload();
+                                           g_translate[0] = 0;
+                                           g_translate[1] = 0;
+                                           g_rotation = 0 ;
+                                       });
+    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[6],
+                                       function(value){
+                                           g_rotationStep = value / 127;
+                                       });
+    KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[7],
+                                       function(value){
+                                           g_hueStep = 0.01 + value / 254;
                                        });
     navigator.requestMIDIAccess().then(success, failure)
     g_canvas = document.getElementById('canvas');
@@ -184,22 +263,18 @@ window.addEventListener('keydown', function(event){
     }
 }, false);
 
-/*
-var g_scaleFactor = 0.1;
-window.onmousewheel = function(event){
+
+var g_scaleFactor = 1;
+window.addEventListener('mousewheel', function(event){
     if(event.wheelDelta < 0.){
-        if((g_scale + g_scaleFactor) / 10 > g_scale / 10){
-            g_scaleFactor *= 10;
-        }
-        g_scale += g_scaleFactor;
+        g_scaleFactor --;
+        g_scale = 1/ Math.abs(g_scaleFactor);
     }else{
-        if(g_scale - g_scaleFactor <= 0.){
-            g_scaleFactor /= 10;
-        }
-        g_scale -= g_scaleFactor;
+        g_scaleFactor ++;
+        g_scale = 1/ Math.abs(g_scaleFactor);
     }
-}
-*/
+}, false);
+
 
 function resizeCanvasFullscreen(){
     g_canvas.style.width = window.innerWidth + 'px';
@@ -224,6 +299,13 @@ function setupShaderGraphicProgram(gl, fragId){
     uniLocation[4] = gl.getUniformLocation(program, 'tilt');
     uniLocation[5] = gl.getUniformLocation(program, 'scale');
     uniLocation[6] = gl.getUniformLocation(program, 'translate');
+    uniLocation[7] = gl.getUniformLocation(program, 'xyReverse');
+    uniLocation[8] = gl.getUniformLocation(program, 'mixFactor');
+    uniLocation[9] = gl.getUniformLocation(program, 'drawLine');
+    uniLocation[10] = gl.getUniformLocation(program, 'rotation');
+    uniLocation[11] = gl.getUniformLocation(program, 'drawOuter');
+    uniLocation[12] = gl.getUniformLocation(program, 'hueStep');
+    uniLocation[13] = gl.getUniformLocation(program, 'maxIterations');
 
     var position = [-1.0, 1.0, 0.0,
                     1.0, 1.0, 0.0,
@@ -242,7 +324,40 @@ function setupShaderGraphicProgram(gl, fragId){
     gl.vertexAttribPointer(vAttLocation, 3, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vIndex);
 
-    return [program, uniLocation, vPosition, vIndex, vAttLocation];
+    var switchSg = function(){
+        gl.useProgram(program);
+        gl.bindBuffer(gl.ARRAY_BUFFER, vPosition);
+        gl.enableVertexAttribArray(vAttLocation);
+        gl.vertexAttribPointer(vAttLocation, 3, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vIndex);
+    }
+
+    var render = function(elapsedTime){
+        gl.viewport(0, 0, g_canvas.width, g_canvas.height);
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        gl.uniform2fv(uniLocation[1], [g_canvas.width, g_canvas.height]);
+        gl.uniform2fv(uniLocation[2], [g_video.videoWidth, g_video.videoHeight]);
+        gl.uniform1f(uniLocation[3], elapsedTime * 0.001);
+        gl.uniform2fv(uniLocation[4], [g_tiltX, g_tiltY]);
+        gl.uniform1f(uniLocation[5], g_scale);
+        gl.uniform2fv(uniLocation[6], g_translate);
+        gl.uniform1i(uniLocation[7], g_xyReverse);
+        gl.uniform1f(uniLocation[8], g_mixFactor);
+        gl.uniform1i(uniLocation[9], g_drawLine);
+        gl.uniform1f(uniLocation[10], g_rotation);
+        gl.uniform1i(uniLocation[11], g_drawOuter);
+        gl.uniform1f(uniLocation[12], g_hueStep);
+        gl.uniform1i(uniLocation[13], g_maxIterations);
+
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, g_video);
+        gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+
+	gl.flush();
+    }
+
+    return [program, uniLocation, vPosition, vIndex, vAttLocation, switchSg, render];
 }
 
 function setupOptProgram(gl, fragId, vertId){
@@ -275,7 +390,7 @@ function setupOptProgram(gl, fragId, vertId){
                                     Complex.ZERO);
     cp.setQ(new Complex(0.25, 0.25));
     var ex = new OptLimitSetExplorer(cp.getGens());
-    console.log(ex.gens);
+//    console.log(ex.gens);
     //    console.log('calc');
     ex.run(10, 0.01);
     console.log(ex.points);
@@ -310,9 +425,10 @@ var switchingFunctions = [];
 function render(){
     var startTime = new Date().getTime();
     var gl = g_canvas.getContext('webgl') || g_canvas.getContext('experimental-webgl');
-    var [sgProgram, sgUniLocation, sgPositionVbo, sgIndex, sgAttLocation] = setupShaderGraphicProgram(gl, 'fs3');
-    var [optProgram, optUniLocation, optPositionVbo,
-         optAttLocation, optPointPosition, optNumPoints] = setupOptProgram(gl, 'optfs', 'optvs');
+    var [sgProgram, sgUniLocation, sgPositionVbo, sgIndex, sgAttLocation,
+        switchSg, renderSg] = setupShaderGraphicProgram(gl, 'fs3');
+    //var [optProgram, optUniLocation, optPositionVbo,
+   //      optAttLocation, optPointPosition, optNumPoints] = setupOptProgram(gl, 'optfs', 'optvs');
     var videoTexture = createVideoTexture(gl);
 
     var switchSg = function(){
@@ -323,76 +439,19 @@ function render(){
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sgIndex);
     }
     switchingFunctions[RENDER_SG] = switchSg;
-    var renderSg = function(){
-        var elapsedTime = new Date().getTime() - startTime;
-        if(g_mousePressing){
-            g_translate[0] += (g_mousePos[0]) / 5000 * g_scale;
-            g_translate[1] += (g_mousePos[1]) / 5000 * g_scale;
-//            console.log(g_translate);
-        }
-        function renderGL(gl, uniLocation, canvas){
-            gl.viewport(0, 0, canvas.width, canvas.height);
-            gl.clearColor(0.0, 0.0, 0.0, 1.0);
-	    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-            gl.uniform2fv(uniLocation[1], [canvas.width, canvas.height]);
-            gl.uniform2fv(uniLocation[2], [g_video.videoWidth, g_video.videoHeight]);
-            gl.uniform1f(uniLocation[3], elapsedTime * 0.001);
-            gl.uniform2fv(uniLocation[4], [g_tiltX, g_tiltY]);
-            gl.uniform1f(uniLocation[5], g_scale);
-            gl.uniform2fv(uniLocation[6], g_translate);
-
-	    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, g_video);
-            gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
-
-	    gl.flush();
-        }
-        renderGL(gl, sgUniLocation, g_canvas);
-        if(g_debug){
-            renderGL(gl2, sgUniLocation2, g_canvas2);
-        }
-    }
-
-    var switchOpt = function(){
-        gl.useProgram(optProgram);
-        gl.bindBuffer(gl.ARRAY_BUFFER, optPositionVbo);
-	gl.enableVertexAttribArray(optAttLocation);
-	gl.vertexAttribPointer(optAttLocation, 2, gl.FLOAT, false, 0, 0);
-        //gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
-    }
-    switchingFunctions[RENDER_OPT] = switchOpt;
-    var renderOpt = function(){
-        var elapsedTime = new Date().getTime() - startTime;
-        gl.viewport(0, 0, g_canvas.width, g_canvas.height);
-	// for(i = 0; i < optNumPoints; i++){
-        //     var j = i * 2;
-	//     optPointPosition[j]     =  Math.cos(elapsedTime + j);
-	//     optPointPosition[j + 1] = Math.sin(elapsedTime + j);
-	// }
-	 gl.bufferSubData(gl.ARRAY_BUFFER, 0, optPointPosition);
-
-        gl.clearColor(0.0, 0.0, 0.0, 1.0);
-	gl.clear(gl.COLOR_BUFFER_BIT);
-	gl.drawArrays(gl.LINE_STRIP, 0, optNumPoints);
-	gl.flush();
-    }
-
-
-    if(g_debug){
-        var gl2 = g_canvas2.getContext('webgl') || g_canvas2.getContext('experimental-webgl');
-//        var [gl2, uniLocation2] = setupGL(gl2, 'fs4');
-    }
 
     gl.enable(gl.BLEND);
     gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ONE, gl.ONE);
 
     switchSg();
     (function(){
-        if(renderMode == RENDER_OPT){
-            renderOpt();
-        }else if(renderMode == RENDER_SG){
-            renderSg();
+        var elapsedTime = new Date().getTime() - startTime;
+        g_rotation += g_rotationStep;
+        if(g_mousePressing){
+            g_translate[0] += (g_mousePos[0]) / 5000 * g_scale;
+            g_translate[1] += (g_mousePos[1]) / 5000 * g_scale;
         }
+        renderSg(elapsedTime);
 	requestAnimationFrame(arguments.callee);
     })();
 }
