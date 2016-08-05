@@ -24,6 +24,10 @@ var g_rotationStep = 0;
 var g_hueStep = 0.2;
 var g_drawOuter = 0;
 var g_maxIterations = 20;
+var g_circleDist = 10;
+var g_baseCircleDist = 0;
+var g_isOscCircleDist = false;
+var g_initialHue = 0.04;
 
 var KorgNanoKontrol = new Object();
 KorgNanoKontrol.knob = new Object();
@@ -131,6 +135,9 @@ window.addEventListener('load', function(event){
             if(g_isOscTiltY){
                 g_tiltY = g_baseTiltY + oscMessage['args'][0];
             }
+            if(g_isOscCircleDist){
+                g_circleDist = 0.72 + g_circleDist + g_baseCircleDist * oscMessage['args'][0] ;
+            }
         }
     });
 
@@ -139,16 +146,25 @@ window.addEventListener('load', function(event){
     var i = 0;
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[0],
                                        function(value){
-                                           if(g_isOscTiltX){
-                                               g_baseTiltX = (value - 64) / 64 * Math.PI / 5.5;
-                                           }else{
-                                               g_tiltX = g_baseTiltX + (value - 64) / 64 * Math.PI / 5.5;
+                                           if(renderMode == RENDER_SG){
+                                               if(g_isOscTiltX){
+                                                   g_baseTiltX = (value - 64) / 64 * Math.PI / 5.5;
+                                               }else{
+                                                   g_tiltX = g_baseTiltX + (value - 64) / 64 * Math.PI / 5.5;
+                                               }
+                                           }else if(renderMode == RENDER_KS){
+                                               g_circleDist = .72 + value / 10;
                                            }
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.buttonS[0],
                                        function(value){
-                                           if(value == 127)
-                                               g_isOscTiltX = !g_isOscTiltX;
+                                           if(value == 127){
+                                               if(renderMode == RENDER_SG){
+                                                   g_isOscTiltX = !g_isOscTiltX;
+                                               }else if(renderMode == RENDER_KS){
+                                                   g_isOscCircleDist = !g_isOscCircleDist;
+                                               }
+                                           }
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.buttonM[0],
                                        function(value){
@@ -177,10 +193,14 @@ window.addEventListener('load', function(event){
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[1],
                                        function(value){
-                                           if(g_isOscTiltY){
-                                               g_baseTiltY = (value - 64) / 64 * Math.PI / 5.5;
-                                           }else{
-                                               g_tiltY = g_baseTiltY + (value - 64) / 64 * Math.PI / 5.5;
+                                           if(renderMode == RENDER_SG){
+                                               if(g_isOscTiltY){
+                                                   g_baseTiltY = (value - 64) / 64 * Math.PI / 5.5;
+                                               }else{
+                                                   g_tiltY = g_baseTiltY + (value - 64) / 64 * Math.PI / 5.5;
+                                               }
+                                           }else if(renderMode == RENDER_KS){
+                                               g_baseCircleDist = value / 5;
                                            }
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.buttonS[1],
@@ -194,13 +214,21 @@ window.addEventListener('load', function(event){
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[3],
                                        function(value){
-                                           g_baseTiltX = (value) / 127 * Math.PI / 5.5;
-                                           g_tiltX = g_baseTiltX + (value - 64) / 64 * Math.PI / 5.5;
+                                           if(renderMode == RENDER_SG){
+                                               g_baseTiltX = (value) / 127 * Math.PI / 5.5;
+                                               g_tiltX = g_baseTiltX + (value - 64) / 64 * Math.PI / 5.5;
+                                           }else if(renderMode == RENDER_KS){
+                                               g_initialHue = value / 257;
+                                           }
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[4],
                                        function(value){
-                                           g_baseTiltY = (value) / 127 * Math.PI / 5.5;
-                                           g_tiltY = g_baseTiltY + (value - 64) / 64 * Math.PI / 5.5;
+                                           if(renderMode == RENDER_SG){
+                                               g_baseTiltY = (value) / 127 * Math.PI / 5.5;
+                                               g_tiltY = g_baseTiltY + (value - 64) / 64 * Math.PI / 5.5;
+                                           }else if(renderMode == RENDER_KS){
+                                               g_hueStep = 0.01 +  value / 257;
+                                           }
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[5],
                                        function(value){
@@ -219,7 +247,7 @@ window.addEventListener('load', function(event){
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[7],
                                        function(value){
-                                           g_hueStep = 0.01 + value / 254;
+                                           g_hueStep = 0.01 + value / 257;
                                        });
     navigator.requestMIDIAccess().then(success, failure)
     g_canvas = document.getElementById('canvas');
@@ -258,8 +286,8 @@ window.addEventListener('keydown', function(event){
         switchingFunctions[RENDER_SG]();
         renderMode = RENDER_SG;
     }else if(event.key == '2'){
-        switchingFunctions[RENDER_OPT]();
-        renderMode = RENDER_OPT;
+        switchingFunctions[RENDER_KS]();
+        renderMode = RENDER_KS;
     }
 }, false);
 
@@ -360,6 +388,70 @@ function setupShaderGraphicProgram(gl, fragId){
     return [program, uniLocation, vPosition, vIndex, vAttLocation, switchSg, render];
 }
 
+function setupSchottkyProgram(gl, fragId){
+    var program = gl.createProgram();
+    attachShader(gl, fragId, program, gl.FRAGMENT_SHADER);
+    attachShader(gl, 'vs', program, gl.VERTEX_SHADER);
+    program = linkProgram(gl, program);
+
+    var uniLocation = new Array();
+    uniLocation[0] = gl.getUniformLocation(program, 'iResolution');
+    uniLocation[1] = gl.getUniformLocation(program, 'iGlobalTime');
+    uniLocation[2] = gl.getUniformLocation(program, 'rotation');
+    uniLocation[3] = gl.getUniformLocation(program, 'translate');
+    uniLocation[4] = gl.getUniformLocation(program, 'scale');
+    uniLocation[5] = gl.getUniformLocation(program, 'circleDist');
+    uniLocation[6] = gl.getUniformLocation(program, 'initialHue');
+    uniLocation[7] = gl.getUniformLocation(program, 'hueStep');
+
+    var position = [-1.0, 1.0, 0.0,
+                    1.0, 1.0, 0.0,
+	            -1.0, -1.0,  0.0,
+	            1.0, -1.0, 0.0
+                   ];
+    var index = [
+	0, 2, 1,
+	1, 2, 3
+    ];
+    var vPosition = createVbo(gl, position);
+    var vIndex = createIbo(gl, index);
+    var vAttLocation = gl.getAttribLocation(program, 'position');
+    gl.bindBuffer(gl.ARRAY_BUFFER, vPosition);
+    gl.enableVertexAttribArray(vAttLocation);
+    gl.vertexAttribPointer(vAttLocation, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vIndex);
+
+    var switchProgram = function(){
+        gl.useProgram(program);
+        gl.bindBuffer(gl.ARRAY_BUFFER, vPosition);
+        gl.enableVertexAttribArray(vAttLocation);
+        gl.vertexAttribPointer(vAttLocation, 3, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vIndex);
+    }
+
+    var render = function(elapsedTime){
+        gl.viewport(0, 0, g_canvas.width, g_canvas.height);
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        gl.uniform2fv(uniLocation[0], [g_canvas.width, g_canvas.height]);
+        gl.uniform1f(uniLocation[1], elapsedTime * 0.001);
+        gl.uniform1f(uniLocation[2], g_rotation);
+        gl.uniform2fv(uniLocation[3], g_translate);
+        gl.uniform1f(uniLocation[4], g_scale);
+        gl.uniform1f(uniLocation[5], g_circleDist);
+        gl.uniform1f(uniLocation[6], g_initialHue);
+        gl.uniform1f(uniLocation[7], g_hueStep);
+
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, g_video);
+        gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+
+	gl.flush();
+    }
+
+    return [program, uniLocation, vPosition, vIndex, vAttLocation, switchProgram, render];
+}
+
 function setupOptProgram(gl, fragId, vertId){
     var program = gl.createProgram();
     attachShader(gl, fragId, program, gl.FRAGMENT_SHADER);
@@ -420,6 +512,7 @@ function createVideoTexture(gl){
 
 const RENDER_OPT = 0;
 const RENDER_SG = 1;
+const RENDER_KS = 2;
 var renderMode = RENDER_SG;
 var switchingFunctions = [];
 function render(){
@@ -431,27 +524,33 @@ function render(){
    //      optAttLocation, optPointPosition, optNumPoints] = setupOptProgram(gl, 'optfs', 'optvs');
     var videoTexture = createVideoTexture(gl);
 
-    var switchSg = function(){
-        gl.useProgram(sgProgram);
-        gl.bindBuffer(gl.ARRAY_BUFFER, sgPositionVbo);
-	gl.enableVertexAttribArray(sgAttLocation);
-	gl.vertexAttribPointer(sgAttLocation, 3, gl.FLOAT, false, 0, 0);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sgIndex);
-    }
     switchingFunctions[RENDER_SG] = switchSg;
+
+    var [sgProgram, sgUniLocation, sgPositionVbo, sgIndex, sgAttLocation,
+         switchKs, renderKs] = setupSchottkyProgram(gl, 'kissingSchottky')
+    switchingFunctions[RENDER_KS] = switchKs;
 
     gl.enable(gl.BLEND);
     gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ONE, gl.ONE);
 
     switchSg();
+    renderMode = RENDER_SG;
     (function(){
         var elapsedTime = new Date().getTime() - startTime;
         g_rotation += g_rotationStep;
         if(g_mousePressing){
-            g_translate[0] += (g_mousePos[0]) / 5000 * g_scale;
-            g_translate[1] += (g_mousePos[1]) / 5000 * g_scale;
+            if(renderMode == RENDER_SG){
+                g_translate[0] += (g_mousePos[0]) / 5000 * g_scale;
+                g_translate[1] += (g_mousePos[1]) / 5000 * g_scale;
+            }else if(renderMode == RENDER_KS){
+                g_translate[0] += (g_mousePos[0]) / 500 * g_scale;
+                g_translate[1] += (g_mousePos[1]) / 500 * g_scale;
+            }
         }
-        renderSg(elapsedTime);
+        if(renderMode == RENDER_SG)
+            renderSg(elapsedTime);
+        else if(renderMode == RENDER_KS)
+            renderKs(elapsedTime);
 	requestAnimationFrame(arguments.callee);
     })();
 }
