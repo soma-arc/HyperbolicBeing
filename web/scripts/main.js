@@ -28,6 +28,7 @@ var g_circleDist = 10;
 var g_baseCircleDist = 0;
 var g_isOscCircleDist = false;
 var g_initialHue = 0.04;
+var g_tileTheta = Math.PI / 4.;
 
 var KorgNanoKontrol = new Object();
 KorgNanoKontrol.knob = new Object();
@@ -138,6 +139,7 @@ window.addEventListener('load', function(event){
             if(g_isOscCircleDist){
                 g_circleDist = 0.72 + g_circleDist + g_baseCircleDist * oscMessage['args'][0] ;
             }
+            g_tileTheta = Math.PI / 16 + Math.PI / 2 * oscMessage['args'][0];
         }
     });
 
@@ -154,6 +156,8 @@ window.addEventListener('load', function(event){
                                                }
                                            }else if(renderMode == RENDER_KS){
                                                g_circleDist = .72 + value / 10;
+                                           }else if(renderMode == RENDER_TRI){
+                                               g_tileTheta = Math.PI / 16 + Math.PI / 2 * value / 150;
                                            }
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.buttonS[0],
@@ -217,7 +221,8 @@ window.addEventListener('load', function(event){
                                            if(renderMode == RENDER_SG){
                                                g_baseTiltX = (value) / 127 * Math.PI / 5.5;
                                                g_tiltX = g_baseTiltX + (value - 64) / 64 * Math.PI / 5.5;
-                                           }else if(renderMode == RENDER_KS){
+                                           }else if(renderMode == RENDER_KS ||
+                                                    renderMode == RENDER_TRI){
                                                g_initialHue = value / 257;
                                            }
                                        });
@@ -226,7 +231,8 @@ window.addEventListener('load', function(event){
                                            if(renderMode == RENDER_SG){
                                                g_baseTiltY = (value) / 127 * Math.PI / 5.5;
                                                g_tiltY = g_baseTiltY + (value - 64) / 64 * Math.PI / 5.5;
-                                           }else if(renderMode == RENDER_KS){
+                                           }else if(renderMode == RENDER_KS ||
+                                                    renderMode == RENDER_TRI){
                                                g_hueStep = 0.01 +  value / 257;
                                            }
                                        });
@@ -288,6 +294,9 @@ window.addEventListener('keydown', function(event){
     }else if(event.key == '2'){
         switchingFunctions[RENDER_KS]();
         renderMode = RENDER_KS;
+    }else if(event.key == '3'){
+        switchingFunctions[RENDER_TRI]();
+        renderMode = RENDER_TRI;
     }
 }, false);
 
@@ -403,6 +412,7 @@ function setupSchottkyProgram(gl, fragId){
     uniLocation[5] = gl.getUniformLocation(program, 'circleDist');
     uniLocation[6] = gl.getUniformLocation(program, 'initialHue');
     uniLocation[7] = gl.getUniformLocation(program, 'hueStep');
+    uniLocation[8] = gl.getUniformLocation(program, 'tileTheta');
 
     var position = [-1.0, 1.0, 0.0,
                     1.0, 1.0, 0.0,
@@ -442,7 +452,7 @@ function setupSchottkyProgram(gl, fragId){
         gl.uniform1f(uniLocation[5], g_circleDist);
         gl.uniform1f(uniLocation[6], g_initialHue);
         gl.uniform1f(uniLocation[7], g_hueStep);
-
+        gl.uniform1f(uniLocation[8], g_tileTheta);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, g_video);
         gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 
@@ -451,6 +461,7 @@ function setupSchottkyProgram(gl, fragId){
 
     return [program, uniLocation, vPosition, vIndex, vAttLocation, switchProgram, render];
 }
+
 
 function setupOptProgram(gl, fragId, vertId){
     var program = gl.createProgram();
@@ -513,6 +524,7 @@ function createVideoTexture(gl){
 const RENDER_OPT = 0;
 const RENDER_SG = 1;
 const RENDER_KS = 2;
+const RENDER_TRI = 3;
 var renderMode = RENDER_SG;
 var switchingFunctions = [];
 function render(){
@@ -530,6 +542,10 @@ function render(){
          switchKs, renderKs] = setupSchottkyProgram(gl, 'kissingSchottky')
     switchingFunctions[RENDER_KS] = switchKs;
 
+    var [triProgram, triUniLocation, triPositionVbo, triIndex, triAttLocation,
+         switchTri, renderTri] = setupSchottkyProgram(gl, 'triangularTiling')
+    switchingFunctions[RENDER_TRI] = switchTri;
+
     gl.enable(gl.BLEND);
     gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ONE, gl.ONE);
 
@@ -545,12 +561,17 @@ function render(){
             }else if(renderMode == RENDER_KS){
                 g_translate[0] += (g_mousePos[0]) / 500 * g_scale;
                 g_translate[1] += (g_mousePos[1]) / 500 * g_scale;
+            }else if(renderMode == RENDER_TRI){
+                g_translate[0] += (g_mousePos[0]) / 5000 / g_scale;
+                g_translate[1] += (g_mousePos[1]) / 5000 / g_scale;
             }
         }
         if(renderMode == RENDER_SG)
             renderSg(elapsedTime);
         else if(renderMode == RENDER_KS)
             renderKs(elapsedTime);
+        else if(renderMode == RENDER_TRI)
+            renderTri(elapsedTime);
 	requestAnimationFrame(arguments.callee);
     })();
 }
