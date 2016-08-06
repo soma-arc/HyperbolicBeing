@@ -38,7 +38,7 @@ KorgNanoKontrol.onMidiMessage = function(inputId, value){
 
 function success(midiAccess){
     g_midi = midiAccess;
-    console.log("MIDI SUCCESS");
+   console.log("MIDI SUCCESS");
     setInputs(midiAccess);
 }
 
@@ -290,6 +290,88 @@ function setupOptProgram(gl, fragId, vertId){
     return [program, uniLocation, vbo, attLocation, pointPosition, numPoints];
 }
 
+function create3dSchottkyProgram(gl, canvas, fragId){
+    var program = gl.createProgram();
+    attachShader(gl, 'texfs', program, gl.FRAGMENT_SHADER);
+    attachShader(gl, 'vs', program, gl.VERTEX_SHADER);
+    program = linkProgram(gl, program);
+
+    var uniLocation = new Array();
+    uniLocation[0] = gl.getUniformLocation(program, 'texture');
+    uniLocation[1] = gl.getUniformLocation(program, 'iResolution');
+    uniLocation[2] = gl.getUniformLocation(program, 'iGlobalTime');
+
+    var position = [-1.0, 1.0, 0.0,
+                    1.0, 1.0, 0.0,
+	            -1.0, -1.0,  0.0,
+	            1.0, -1.0, 0.0
+                   ];
+    var index = [
+	0, 2, 1,
+	1, 2, 3
+    ];
+    var vPosition = createVbo(gl, position);
+    var vIndex = createIbo(gl, index);
+    var vAttLocation = gl.getAttribLocation(program, 'position');
+
+    var fBuffer =  createFramebuffer(gl, 256, 256);
+    
+    var setupTexFS = function(){
+	gl.bindBuffer(gl.ARRAY_BUFFER, vPosition);
+	gl.enableVertexAttribArray(vAttLocation);
+	gl.vertexAttribPointer(vAttLocation, 3, gl.FLOAT, false, 0, 0);
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vIndex);
+    }
+
+    var renderProgram = gl.createProgram();
+    attachShader(gl, fragId, renderProgram, gl.FRAGMENT_SHADER);
+    attachShader(gl, 'vs', renderProgram, gl.VERTEX_SHADER);
+    renderProgram = linkProgram(gl, renderProgram);
+
+    var renderUniLocation = new Array();
+    renderUniLocation[0] = gl.getUniformLocation(renderProgram, 'iResolution');
+    renderUniLocation[1] = gl.getUniformLocation(renderProgram, 'iGlobalTime');
+    var renderAttLocation = gl.getAttribLocation(renderProgram, 'position');
+    var renderPosition = createVbo(gl, position);
+    var renderIndex = createIbo(gl, index);
+    var setupRenderFS = function(){
+	gl.bindBuffer(gl.ARRAY_BUFFER, renderPosition);
+	gl.enableVertexAttribArray(renderAttLocation);
+	gl.vertexAttribPointer(renderAttLocation, 3, gl.FLOAT, false, 0, 0);
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, renderIndex);
+    }
+
+    
+    var render = function(canvas, elapsedTime){
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fBuffer.f);
+	gl.clearColor(0.0, 0.0, 0.0, 1.0);
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+	gl.useProgram(renderProgram);
+	setupRenderFS();
+	gl.uniform2fv(renderUniLocation[0], [256, 256]);
+	gl.uniform1f(renderUniLocation[1], elapsedTime);
+	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+	
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+	gl.clearColor(0.0, 0.0, 0.0, 1.0);
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+	gl.useProgram(program);
+	setupTexFS();
+	gl.bindTexture(gl.TEXTURE_2D, fBuffer.texture);
+	gl.uniform2fv(uniLocation[1], [canvas.width, canvas.height]);
+	gl.uniform1f(uniLocation[2], elapsedTime );
+	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+	gl.flush();
+    }
+    
+    // return {program: program,
+    // 	    uniLocation: uniLocation,
+    // 	    vPosition: vPosition,
+    // 	    vIndex: vIndex,
+    // 	    vAttLocation: vAttLocation};
+    return render;
+}
+
 function createVideoTexture(gl){
     var videoTexture = gl.createTexture(gl.TEXTURE_2D);
 
@@ -308,12 +390,13 @@ const RENDER_SG = 1;
 var renderMode = RENDER_SG;
 var switchingFunctions = [];
 function render(){
+    renderMode = -1;
     var startTime = new Date().getTime();
     var gl = g_canvas.getContext('webgl') || g_canvas.getContext('experimental-webgl');
     var [sgProgram, sgUniLocation, sgPositionVbo, sgIndex, sgAttLocation] = setupShaderGraphicProgram(gl, 'fs3');
     var [optProgram, optUniLocation, optPositionVbo,
          optAttLocation, optPointPosition, optNumPoints] = setupOptProgram(gl, 'optfs', 'optvs');
-    var videoTexture = createVideoTexture(gl);
+    var videoTexture = null;//createVideoTexture(gl);
 
     var switchSg = function(){
         gl.useProgram(sgProgram);
@@ -377,22 +460,20 @@ function render(){
 	gl.flush();
     }
 
-
-    if(g_debug){
-        var gl2 = g_canvas2.getContext('webgl') || g_canvas2.getContext('experimental-webgl');
-//        var [gl2, uniLocation2] = setupGL(gl2, 'fs4');
-    }
-
     gl.enable(gl.BLEND);
     gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ONE, gl.ONE);
 
-    switchSg();
+    var schottkyRender = create3dSchottkyProgram(gl, g_canvas, 'fs3dkissing');
+//    switchSg();
     (function(){
         if(renderMode == RENDER_OPT){
             renderOpt();
         }else if(renderMode == RENDER_SG){
             renderSg();
-        }
+        }else{
+	    var elapsedTime = new Date().getTime() - startTime;
+	    schottkyRender(g_canvas, elapsedTime);
+	}
 	requestAnimationFrame(arguments.callee);
     })();
 }
@@ -434,4 +515,23 @@ function createIbo(gl, data){
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(data), gl.STATIC_DRAW);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
     return ibo;
+}
+
+function createFramebuffer(gl, width, height){
+    var frameBuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+    var depthRenderBuffer = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, depthRenderBuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthRenderBuffer);
+    var fTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, fTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fTexture, 0);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return {f : frameBuffer, d : depthRenderBuffer, texture : fTexture};
 }

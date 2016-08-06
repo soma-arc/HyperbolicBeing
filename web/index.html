@@ -27,7 +27,208 @@
      gl_Position = vec4(position, 1.0);
    }
   </script>
+  <script id="texfs" type="x-shader/x-fragment">
+   precision mediump float;
+   uniform sampler2D texture;
 
+   uniform vec2 iResolution;
+   uniform float iGlobalTime;
+   //uniform vec2 camResolution;
+
+   void main(){
+       float ratio = iResolution.x / iResolution.y / 2.0;
+       //       vec2 position = ( (gl_FragCoord.xy) / iResolution.yy ) - vec2(ratio, 0.5);
+       vec2 position = gl_FragCoord.xy / iResolution.xy;
+       gl_FragColor = texture2D(texture, position);
+   }
+  </script>
+  <script id="fs3dkissing" type="x-shader/x-fragment">
+   precision mediump float;
+   uniform vec2 iResolution;
+   uniform float iGlobalTime;
+   
+   vec3 ROTATION_AXIS = normalize(vec3(0.1, 1, 0.5));
+   vec3 rotate(vec3 p, float angle){
+       float s = sin(angle);
+       float c = cos(angle);
+       float r = 1.0 - c;
+       mat3 m = mat3(ROTATION_AXIS.x * ROTATION_AXIS.x * r + c,
+                     ROTATION_AXIS.y * ROTATION_AXIS.x * r + ROTATION_AXIS.z * s,
+                     ROTATION_AXIS.z * ROTATION_AXIS.x * r - ROTATION_AXIS.y * s,
+                     ROTATION_AXIS.x * ROTATION_AXIS.y * r - ROTATION_AXIS.z * s,
+                     ROTATION_AXIS.y * ROTATION_AXIS.y * r + c,
+                     ROTATION_AXIS.z * ROTATION_AXIS.y * r + ROTATION_AXIS.x * s,
+                     ROTATION_AXIS.x * ROTATION_AXIS.z * r + ROTATION_AXIS.y * s,
+                     ROTATION_AXIS.y * ROTATION_AXIS.z * r - ROTATION_AXIS.x * s,
+                     ROTATION_AXIS.z * ROTATION_AXIS.z * r + c);
+       return m * p;
+   }
+
+   const vec3 SPHERE_POS1 = vec3(300, 300, 0);
+   const vec3 SPHERE_POS2 = vec3(300, -300, 0);
+   const vec3 SPHERE_POS3 = vec3(-300, 300, 0);
+   const vec3 SPHERE_POS4 = vec3(-300, -300, 0);
+   const vec3 SPHERE_POS5 = vec3(0, 0, 424.26);
+   const vec3 SPHERE_POS6 = vec3(0, 0, -424.26);
+   const float SPHERE_R = 300.;
+   const float SPHERE_R2 = SPHERE_R * SPHERE_R;
+
+   vec3 sphereInvert(vec3 pos, vec3 circlePos, float circleR){
+       return ((pos - circlePos) * circleR * circleR)/(distance(pos, circlePos) * distance(pos, circlePos) ) + circlePos;
+   }
+
+   float loopNum = 0.;
+   float kleinSphereR = 125.;
+   //float kleinSphereR = 300.;
+   //float kleinSphereR = 400.;
+   const int MAX_KLEIN_ITARATION = 30;
+   float distKlein(vec3 pos){
+       pos = rotate(pos, radians(iGlobalTime * 30.));
+       float scalingFactor= 0.08;
+       loopNum = 0.;
+       float dr = 1.;
+       bool loopEnd = true;
+       for(int i = 0 ; i < MAX_KLEIN_ITARATION ; i++){
+	   loopEnd = true;
+	   if(distance(pos, SPHERE_POS1) < SPHERE_R){
+	       vec3 diff = (pos - SPHERE_POS1);
+	       dr *= SPHERE_R2 / dot(diff, diff);
+	       pos = sphereInvert(pos, SPHERE_POS1, SPHERE_R);
+	       loopEnd = false;
+	       loopNum++;
+	   }else if(distance(pos, SPHERE_POS2) < SPHERE_R){
+	       vec3 diff = (pos- SPHERE_POS2);
+	       dr *= SPHERE_R2 / dot(diff, diff);
+	       pos = sphereInvert(pos, SPHERE_POS2, SPHERE_R);
+	       loopEnd = false;
+	       loopNum++;
+	   }else if(distance(pos, SPHERE_POS3) < SPHERE_R){
+	       vec3 diff = (pos- SPHERE_POS3);
+	       dr *= SPHERE_R2 / dot(diff, diff);
+	       pos = sphereInvert(pos, SPHERE_POS3, SPHERE_R);
+	       loopEnd = false;
+	       loopNum++;
+	   }else if(distance(pos, SPHERE_POS4) < SPHERE_R){
+	       vec3 diff = (pos- SPHERE_POS4);
+	       dr *= SPHERE_R2 / dot(diff, diff);
+	       pos = sphereInvert(pos, SPHERE_POS4, SPHERE_R);
+	       loopEnd = false;
+	       loopNum++;
+	   }else if(distance(pos, SPHERE_POS5) < SPHERE_R){
+	       vec3 diff = (pos- SPHERE_POS5);
+	       dr *= SPHERE_R2 / dot(diff, diff);
+	       pos = sphereInvert(pos, SPHERE_POS5, SPHERE_R);
+	       loopEnd = false;
+	       loopNum++;
+	   }else if(distance(pos, SPHERE_POS6) < SPHERE_R){
+	       vec3 diff = (pos- SPHERE_POS6);
+	       dr *= SPHERE_R2 / dot(diff, diff);
+	       pos = sphereInvert(pos, SPHERE_POS6, SPHERE_R);
+	       loopEnd = false;
+	       loopNum++;
+	   }
+	   if(loopEnd == true) break;
+       }
+       
+       return (length(pos) - kleinSphereR) / abs(dr) * scalingFactor;
+   }
+
+   vec3 calcRay (const vec3 eye, const vec3 target, const vec3 up, const float fov,
+									 const float width, const float height, const vec2 coord){
+       float imagePlane = (height * .5) / tan(fov * .5);
+       vec3 v = normalize(target - eye);
+       vec3 xaxis = normalize(cross(v, up));
+       vec3 yaxis =  normalize(cross(v, xaxis));
+       vec3 center = v * imagePlane;
+       vec3 origin = center - (xaxis * (width  *.5)) - (yaxis * (height * .5));
+       return normalize(origin + (xaxis * coord.x) + (yaxis * (height - coord.y)));
+   }
+
+   const vec4 K = vec4(1.0, .666666, .333333, 3.0);
+   vec3 hsv2rgb(const vec3 c){
+       vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+       return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+   }
+
+   float distFunc(vec3 p){
+       return distKlein(p);
+   }
+
+   const vec2 d = vec2(0.01, 0.);
+   vec3 getNormal(const vec3 p){
+       return normalize(vec3(distFunc(p + d.xyy) - distFunc(p - d.xyy),
+                             distFunc(p + d.yxy) - distFunc(p - d.yxy),
+                             distFunc(p + d.yyx) - distFunc(p - d.yyx)));
+   }
+
+   const float PI_4 = 12.566368;
+   const vec3 LIGHTING_FACT = vec3(0.1);
+   vec3 diffuseLighting(const vec3 p, const vec3 n, const vec3 diffuseColor,
+							  const vec3 lightPos, const vec3 lightPower){
+       vec3 v = lightPos - p;
+       float dot = dot(n, normalize(v));
+       float r = length(v);
+       return (dot > 0.) ?
+	      (lightPower * (dot / (PI_4 * r * r))) * diffuseColor
+	    : LIGHTING_FACT * diffuseColor;
+   }
+
+   const vec3 lightPos = vec3(400, 0, 500);
+   const vec3 lightPos2 = vec3(-300., -300., -300);
+   const vec3 lightPower = vec3(800000.);
+   const vec3 lightPoweSPHERE_R2 = vec3(10000.);
+
+   const int MAX_MARCHING_LOOP = 800;
+   vec2 march(const vec3 origin, const  vec3 ray, const float threshold){
+       vec3 rayPos = origin;
+       float dist;
+       float rayLength = 0.;
+       for(int i = 0 ; i < MAX_MARCHING_LOOP ; i++){
+	   dist = distFunc(rayPos);
+	   rayLength += dist;
+	   rayPos = origin + ray * rayLength ;
+	   if(dist < threshold) break;
+       }
+       return vec2(dist, rayLength);
+   }
+
+   const vec3 BLACK = vec3(0);
+   vec3 calcColor(vec3 eye, vec3 ray){
+       vec3 l = BLACK;
+       float coeff = 1.;
+       vec2 result = march(eye, ray, 0.01);
+       vec3 intersection = eye + ray * result.y;
+       vec3 matColor = vec3(0);
+       vec3 normal = getNormal(intersection);
+       if(result.x < 0.01){
+	   matColor = hsv2rgb(vec3(0.1 + loopNum * 0.1 , 1., 1.));
+	   l += diffuseLighting(intersection, normal, matColor, lightPos, lightPower);
+	   l += diffuseLighting(intersection, normal, matColor, lightPos2, lightPower);
+       }
+       return l;
+   }
+
+   const float DISPLAY_GAMMA_COEFF = 1. / 2.2;
+   vec3 gammaCorrect(vec3 rgb) {
+       return vec3((min(pow(rgb.r, DISPLAY_GAMMA_COEFF), 1.)),
+		   (min(pow(rgb.g, DISPLAY_GAMMA_COEFF), 1.)),
+		   (min(pow(rgb.b, DISPLAY_GAMMA_COEFF), 1.)));
+   }
+
+   const vec3 eye = vec3(300 , 0., 550 );
+   const vec3 target = vec3(0, 0, 0);
+   const vec3 up = vec3(0, 1, 0);
+   float fov = radians(60.);
+
+   void main(){
+       const vec2 coordOffset = vec2(0.5);
+       vec3 ray = calcRay(eye, target, up, fov,
+			  iResolution.x, iResolution.y,
+			  gl_FragCoord.xy + coordOffset);
+
+       gl_FragColor = vec4(gammaCorrect(calcColor(eye, ray)), 1.);
+   }
+  </script>
   <script id="fs" type="x-shader/x-fragment">
    precision mediump float;
 
@@ -476,7 +677,7 @@
          //    abs(distance(g_pos, -cPos2) - cr2) < 0.01){
          //      sum += vec3(0, 0, 0);
          //    }else{
-         sum += texture2D(texture, abs( vec2( 1.) - (g_pos + texTranslate) / tile)).rgb;
+           sum += texture2D(texture, abs( vec2( 1.) - (g_pos + texTranslate) / tile)).rgb;
          //            }
          continue;
          if(mod(float(d), 2.) == 0.){
@@ -493,111 +694,6 @@
            }
          }
        }
-     }
-     gl_FragColor = vec4(sum/sampleNum, 1.);
-   }
-  </script>
-  <script id="fs4" type="x-shader/x-fragment">
-   precision mediump float;
-
-   uniform float iGlobalTime;
-   uniform vec2 iResolution;
-   uniform vec2 camResolution;
-   uniform sampler2D texture;
-   uniform float tiltX;
-
-   vec2 rand2n(vec2 co, float sampleIndex) {
-     vec2 seed = co * (sampleIndex + 1.0);
-     seed+=vec2(-1,1);
-     // implementation based on: lumina.sourceforge.net/Tutorials/Noise.html
-     return vec2(fract(sin(dot(seed.xy ,vec2(12.9898,78.233))) * 43758.5453),
-                 fract(cos(dot(seed.xy ,vec2(4.898,7.23))) * 23421.631));
-   }
-
-
-   vec2 cPos1 = vec2(1.2631, 0);
-   vec2 cPos2 = vec2(0, 1.2631);
-   float cr1 = 0.771643;
-   float cr2 = 0.771643;
-   const float PI = 3.14159265359;
-
-   vec2 g_pos;
-
-   vec2 circleInverse(vec2 pos, vec2 circlePos, float circleR){
-     return ((pos - circlePos) * circleR * circleR)/(length(pos - circlePos) * length(pos - circlePos) ) + circlePos;
-   }
-
-   vec2 reverseStereoProject(vec3 pos){
-     return vec2(pos.x / (1. - pos.z), pos.y / (1. - pos.z));
-   }
-
-
-   vec3 getCircleFromSphere(vec3 upper, vec3 lower){
-     vec2 p1 = reverseStereoProject(upper);
-     vec2 p2 = reverseStereoProject(lower);
-     return vec3((p1 + p2) / 2., distance(p1, p2)/ 2.);
-   }
-
-   bool revCircle = false;
-   bool revCircle2 = false;
-   const int ITERATIONS = 50;
-   float colCount = 0.;
-   bool outer = false;
-
-   vec3 hsv2rgb(vec3 c)
-   {
-     vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-     vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-     return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-   }
-
-   const float sampleNum = 30.;
-   void main( ){
-
-     float t = mod(iGlobalTime, 10.);
-     t = abs(t - 5.) / 5.;
-
-     float ratio = iResolution.x / iResolution.y / 2.0;
-     vec3 sum = vec3(0);
-     float x = 0.57735;
-
-     float bendX = tiltX;// 0. + 1. * abs(sin(iGlobalTime));;//PI / 6.;
-     mat3 xRotate = mat3(1, 0, 0,
-                         0, cos(bendX), -sin(bendX),
-                         0, sin(bendX), cos(bendX));
-     float bendY = PI/6.5;//-abs(0.8 * sin(iGlobalTime));
-     mat3 yRotate = mat3(cos(bendY), 0, sin(bendY),
-                         0, 1, 0,
-                         -sin(bendY), 0, cos(bendY));
-     float y = .57735;
-     vec3 c1 = getCircleFromSphere(vec3(0, y, sqrt(1. - y * y))* xRotate,
-                                   vec3(0, y, -sqrt(1. - y * y))* xRotate);
-     vec3 c2 = getCircleFromSphere(vec3(x, 0, sqrt(1. - x * x)) * yRotate,
-                                   vec3(x, 0, -sqrt(1. - x * x)) * yRotate);
-
-     cr1 = c1.z;
-     cr2 = c2.z;
-     cPos1 = c1.xy;
-     cPos2 = c2.xy;
-     if(y > cPos1.y){
-       revCircle = true;
-     }
-     if(x > cPos2.x){
-       revCircle2 = true;
-     }
-
-     vec2 translate = vec2(0, 0);
-     vec2 tile = vec2(x, y) * 1.;
-
-     for(float i = 0. ; i < sampleNum ; i++){
-       vec2 position = ( (gl_FragCoord.xy + rand2n(gl_FragCoord.xy, i)) / iResolution.yy ) - vec2(ratio, 0.5);
-
-       position *= ( 2.2 + ( t * 8.));
-       position += translate;
-       if(0. < position.x && position.x < x &&
-          0. < position.y && position.y < y){
-            sum += texture2D(texture, abs( vec2(0., 1.) - (position) / tile)).rgb;
-          }
      }
      gl_FragColor = vec4(sum/sampleNum, 1.);
    }
