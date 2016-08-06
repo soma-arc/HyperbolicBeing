@@ -137,7 +137,11 @@ window.addEventListener('load', function(event){
                 g_tiltY = g_baseTiltY + oscMessage['args'][0];
             }
             if(g_isOscCircleDist){
-                g_circleDist = 0.72 + g_circleDist + g_baseCircleDist * oscMessage['args'][0] ;
+		console.log(0.72 + g_circleDist + g_baseCircleDist +  oscMessage['args'][0] * 0.5);
+		console.log('circl ' + g_circleDist);
+		console.log('basse ' + g_baseCircleDist);
+		console.log(oscMessage['args'][0]);
+                g_circleDist = 0.72 + (g_baseCircleDist + 0.001) / (oscMessage['args'][0] * 0.1);
             }
             g_tileTheta = Math.PI / 16 + Math.PI / 2 * oscMessage['args'][0];
         }
@@ -204,7 +208,7 @@ window.addEventListener('load', function(event){
                                                    g_tiltY = g_baseTiltY + (value - 64) / 64 * Math.PI / 5.5;
                                                }
                                            }else if(renderMode == RENDER_KS){
-                                               g_baseCircleDist = value / 5;
+                                               g_baseCircleDist = value / 100;
                                            }
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.buttonS[1],
@@ -246,6 +250,7 @@ window.addEventListener('load', function(event){
                                            g_translate[0] = 0;
                                            g_translate[1] = 0;
                                            g_rotation = 0 ;
+					   g_scale = 1;
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[6],
                                        function(value){
@@ -302,15 +307,15 @@ window.addEventListener('keydown', function(event){
 
 
 var g_scaleFactor = 1;
-window.addEventListener('mousewheel', function(event){
-    if(event.wheelDelta < 0.){
-        g_scaleFactor --;
-        g_scale = 1/ Math.abs(g_scaleFactor);
-    }else{
-        g_scaleFactor ++;
-        g_scale = 1/ Math.abs(g_scaleFactor);
-    }
-}, false);
+// window.addEventListener('mousewheel', function(event){
+//     if(event.wheelDelta < 0.){
+//         g_scaleFactor --;
+//         g_scale = 1/ Math.abs(g_scaleFactor);
+//     }else{
+//         g_scaleFactor ++;
+//         g_scale = 1/ Math.abs(g_scaleFactor);
+//     }
+// }, false);
 
 
 function resizeCanvasFullscreen(){
@@ -559,8 +564,8 @@ function render(){
                 g_translate[0] += (g_mousePos[0]) / 5000 * g_scale;
                 g_translate[1] += (g_mousePos[1]) / 5000 * g_scale;
             }else if(renderMode == RENDER_KS){
-                g_translate[0] += (g_mousePos[0]) / 500 * g_scale;
-                g_translate[1] += (g_mousePos[1]) / 500 * g_scale;
+                g_translate[0] += (g_mousePos[0]) / 450 * g_scale;
+                g_translate[1] += (g_mousePos[1]) / 450 * g_scale;
             }else if(renderMode == RENDER_TRI){
                 g_translate[0] += (g_mousePos[0]) / 5000 / g_scale;
                 g_translate[1] += (g_mousePos[1]) / 5000 / g_scale;
