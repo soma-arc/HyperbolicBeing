@@ -27,8 +27,10 @@ var g_maxIterations = 20;
 var g_circleDist = 10;
 var g_baseCircleDist = 0;
 var g_isOscCircleDist = false;
+var g_isOscSphereDist = false;
 var g_initialHue = 0.04;
 var g_tileTheta = Math.PI / 4.;
+var g_sphereFactor = 1;
 
 var KorgNanoKontrol = new Object();
 KorgNanoKontrol.knob = new Object();
@@ -137,12 +139,12 @@ window.addEventListener('load', function(event){
                 g_tiltY = g_baseTiltY + oscMessage['args'][0];
             }
             if(g_isOscCircleDist){
-		console.log(0.72 + g_circleDist + g_baseCircleDist +  oscMessage['args'][0] * 0.5);
-		console.log('circl ' + g_circleDist);
-		console.log('basse ' + g_baseCircleDist);
-		console.log(oscMessage['args'][0]);
                 g_circleDist = 0.72 + (g_baseCircleDist + 0.001) / (oscMessage['args'][0] * 0.1);
             }
+	    if(g_isOscSphereDist){
+		g_circleDist = 1. + g_sphereFactor * 300 * oscMessage['args'][0] * 1.5;
+		console.log(g_circleDist);
+	    }
             g_tileTheta = Math.PI / 16 + Math.PI / 2 * oscMessage['args'][0];
         }
     });
@@ -162,6 +164,8 @@ window.addEventListener('load', function(event){
                                                g_circleDist = .72 + value / 10;
                                            }else if(renderMode == RENDER_TRI){
                                                g_tileTheta = Math.PI / 16 + Math.PI / 2 * value / 150;
+                                           }else if(renderMode == RENDER_3D){
+                                               g_circleDist = 400 * value / 127;
                                            }
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.buttonS[0],
@@ -171,7 +175,9 @@ window.addEventListener('load', function(event){
                                                    g_isOscTiltX = !g_isOscTiltX;
                                                }else if(renderMode == RENDER_KS){
                                                    g_isOscCircleDist = !g_isOscCircleDist;
-                                               }
+                                               }else if(renderMode == RENDER_3D){
+						   g_isOscSphereDist = !g_isOscSphereDist;
+					       }
                                            }
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.buttonM[0],
@@ -209,7 +215,9 @@ window.addEventListener('load', function(event){
                                                }
                                            }else if(renderMode == RENDER_KS){
                                                g_baseCircleDist = value / 100;
-                                           }
+                                           }else if(renderMode == RENDER_3D){
+					       g_sphereFactor = 0.01 + value / 64;
+					   }
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.buttonS[1],
                                        function(value){
@@ -218,7 +226,10 @@ window.addEventListener('load', function(event){
                                         });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[2],
                                        function(value){
+
                                            g_scale = .1 + value / 10;
+					   if(renderMode == RENDER_3D)
+					       g_scale = (value - 127);
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[3],
                                        function(value){
@@ -228,7 +239,9 @@ window.addEventListener('load', function(event){
                                            }else if(renderMode == RENDER_KS ||
                                                     renderMode == RENDER_TRI){
                                                g_initialHue = value / 257;
-                                           }
+                                           }else if(renderMode == RENDER_3D){
+					       g_rotation = (value - 64) / 64
+					   }
                                        });
     KorgNanoKontrol.addControlListaner(KorgNanoKontrol.knob[4],
                                        function(value){
@@ -285,7 +298,7 @@ window.addEventListener('mouseup', function(event){
 }, false);
 
 window.addEventListener('mousemove', function(event){
-    g_mousePos = [event.clientX - g_center[0], g_canvas.height - event.clientY - g_center[1]];
+    g_mousePos = [event.clientX * 2 - g_center[0], g_canvas.height - event.clientY * 2 - g_center[1]];
 }, false);
 
 window.addEventListener('beforeunload', function(event){
@@ -302,6 +315,9 @@ window.addEventListener('keydown', function(event){
     }else if(event.key == '3'){
         switchingFunctions[RENDER_TRI]();
         renderMode = RENDER_TRI;
+    }else if(event.key == '4'){
+	switchingFunctions[RENDER_3D]();
+	renderMode = RENDER_3D;
     }
 }, false);
 
@@ -530,6 +546,7 @@ const RENDER_OPT = 0;
 const RENDER_SG = 1;
 const RENDER_KS = 2;
 const RENDER_TRI = 3;
+const RENDER_3D = 4;
 var renderMode = RENDER_SG;
 var switchingFunctions = [];
 function render(){
@@ -550,6 +567,10 @@ function render(){
     var [triProgram, triUniLocation, triPositionVbo, triIndex, triAttLocation,
          switchTri, renderTri] = setupSchottkyProgram(gl, 'triangularTiling')
     switchingFunctions[RENDER_TRI] = switchTri;
+
+    var [k3dProgram, k3dUniLocation, k3dPositionVbo, k3dIndex, k3dAttLocation,
+         switch3D, render3D] = setupSchottkyProgram(gl, 'kissing3d')
+    switchingFunctions[RENDER_3D] = switch3D;
 
     gl.enable(gl.BLEND);
     gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ONE, gl.ONE);
@@ -577,6 +598,8 @@ function render(){
             renderKs(elapsedTime);
         else if(renderMode == RENDER_TRI)
             renderTri(elapsedTime);
+	else if(renderMode == RENDER_3D)
+	    render3D(elapsedTime);
 	requestAnimationFrame(arguments.callee);
     })();
 }
