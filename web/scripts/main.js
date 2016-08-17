@@ -134,14 +134,11 @@ window.addEventListener('load', function(event){
         if(oscMessage['address'] == '/audio/loud'){
             if(g_isOscTiltX){
                 g_tiltX = g_baseTiltX + oscMessage['args'][0];
-            }
-            if(g_isOscTiltY){
+            }else if(g_isOscTiltY){
                 g_tiltY = g_baseTiltY + oscMessage['args'][0];
-            }
-            if(g_isOscCircleDist){
+            }else if(g_isOscCircleDist){
                 g_circleDist = 0.72 + (g_baseCircleDist + 0.001) / (oscMessage['args'][0] * 0.1);
-            }
-	    if(g_isOscSphereDist){
+            }else if(g_isOscSphereDist){
 		g_circleDist = 1. + g_sphereFactor * 300 * oscMessage['args'][0] * 1.5;
 		console.log(g_circleDist);
 	    }
@@ -318,6 +315,62 @@ window.addEventListener('keydown', function(event){
     }else if(event.key == '4'){
 	switchingFunctions[RENDER_3D]();
 	renderMode = RENDER_3D;
+    }else if(event.key == 'ArrowRight'){
+	g_tiltX += 0.05;
+	g_baseTiltX += 0.05;
+    }else if(event.key == 'ArrowLeft'){
+	g_tiltX -= 0.05;
+	g_baseTiltX -= 0.05;
+    }else if(event.key == 'ArrowUp'){
+	g_tiltY += 0.05;
+	g_baseTiltY += 0.05;
+    }else if(event.key == 'ArrowDown'){
+	g_tiltY -= 0.05;
+	g_baseTiltY -= 0.05;
+    }else if(event.key == 'n'){
+	g_scale += 0.05;
+    }else if(event.key == 'p'){
+	g_scale -= 0.05;
+    }else if(event.key == 'q'){
+	g_drawLine = !g_drawLine;
+    }else if(event.key == 'w'){
+	g_xyReverse = !g_xyReverse;
+    }else if(event.key == 'e'){
+	g_drawOuter = !g_drawOuter;
+    }else if(event.key == 'r'){
+	g_translate[0] = 0;
+        g_translate[1] = 0;
+        g_rotation = 0 ;
+	g_scale = 2;
+	g_rotationStep = 0;
+    }else if(event.key == 'y'){
+	g_rotationStep += 0.1;
+    }else if(event.key == 't'){
+	g_rotationStep -= 0.1;
+    }else if(event.key == 'a'){
+	g_isOscTiltX = !g_isOscTiltX;
+    }else if(event.key == 's'){
+	g_isOscTiltY = !g_isOscTiltY;
+    }else if(event.key == 'd'){
+	g_isOscSphereDist = !g_isOscSphereDist;
+    }else if(event.key == 'f'){
+	g_isOscCircleDist = !g_isOscCircleDist;
+    }else if(event.key == 'z'){
+	if(renderMode == RENDER_3D){
+	    g_sphereFactor -= 0.1;
+	}else if(renderMode == RENDER_KS){
+	    g_baseCircleDist -= 0.1;
+	}
+    }else if(event.key == 'x'){
+	if(renderMode == RENDER_3D){
+	    g_sphereFactor += 0.1;
+	}else if(renderMode == RENDER_KS){
+	    g_baseCircleDist += 0.1;
+	}
+    }else if(event.key == 'c'){
+	g_initialHue -= 0.05;
+    }else if(event.key == 'v'){
+	g_initialHue += 0.05;
     }
 }, false);
 
